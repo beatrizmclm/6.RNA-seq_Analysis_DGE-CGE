@@ -1,0 +1,204 @@
+---
+title: RNA-Seq Analysis – 
+ Differential Gene Expression and Consistent Gene Differential Expression analysis
+author: "Beatriz Manso"
+date: '2022-04-21'
+output: 
+  distill::distill_article:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: true
+    code_folding: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+Find differentially expressed genes in PLancenta tissue with preeclampsia 
+We will need the control samples for normal placenta tissue and samples of tissue with preeclampsia . 
+
+# Methods
+
+Set working directory:
+
+```{r}
+setwd("C:/Users/manso/OneDrive - University of West London/MSc Bioinformatics - UWL/6.BGA - Bioinformatics and Genome Analysis/week 5 - Microarray analysis/practical")
+```
+
+Install necessary packages and load libraries:
+
+```{r}
+# Installing DEseq2 package
+if (!require("BiocManager", quietly = TRUE))
+ install.packages("BiocManager")
+BiocManager::install("DESeq2")
+
+# Load the Library
+library(DESeq2)
+library(tidyverse)
+```
+# Part 1: Differential Gene Expression Analysis
+
+## 1. Read Data
+
+```{r}
+
+countsN <- read.csv("ExpData.csv")
+
+rownames(countsN) <- countsN[,1]
+
+countsN <- countsN[,-1]
+
+dim(countsN)
+```
+In this dataset we have 16 samples ans 60715 gene ids.
+
+```{r}
+#Condition and Coldata 
+condition <- as.factor(c(rep("NP", 8,), rep("PE", 8)))
+
+colData <- data.frame(row.names=colnames(countsN), 
+                      condition=factor(condition, levels=c('NP', 'PE')))
+
+```
+
+## 2. DEseqDataset
+
+```{r}
+#DEseqDataset
+dataset <- DESeqDataSetFromMatrix(countData = countsN,
+                                  colData = colData, 
+                                  design = ~condition)
+dataset
+```
+## 3. Run the DESeq2 algorithm and extract results for our two-class
+
+```{r}
+dds <- DESeq(dataset)
+```
+
+```{r}
+print(dds)
+```
+## 4. Get Results
+
+```{r}
+result <- results(dds, contrast=c('condition','NP','PE'), alpha = 0.01)
+result <- results(dds, contrast=c('condition','NP','PE'), alpha = 0.01)
+summary(result)
+
+```
+## 5. Extract the up and down regulated gene file
+
+```{r}
+resSigind = result[ which(result$padj < 0.01 & result$log2FoldChange > 0), ]
+resSigrep = result[ which(result$padj < 0.01 & result$log2FoldChange < 0), ]
+resSig = rbind(resSigind, resSigrep)
+
+write.csv(resSig, "Week9_DGEUp&DnReg0.01.csv")
+```
+
+
+# Part 2: Consistent Gene Differential Expression (CGDE)
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+ install.packages("BiocManager")
+BiocManager::install("Rmpfr")
+BiocManager::install("RankProd")
+BiocManager::install("Rmpfr")
+
+
+library(edgeR)
+library(RankProd)
+
+```
+
+## 1. Read Data
+
+```{r}
+countsN <- read.csv("ExpData.csv", header = T)
+rownames(countsN) <- countsN[,1]
+countsN <- countsN[,-1]
+countsN <- as.matrix(countsN)
+dim(countsN)
+```
+## 2. RNA-Seq Normalisation with TMM from edgeR Package
+```{r}
+dge <- DGEList(counts=countsN)
+dge <- calcNormFactors(dge, method = "TMM")
+TPMnorm_NPET1 <- cpm(dge, log = TRUE, normalized.lib.sizes=TRUE)
+
+dim(countsN)
+
+```
+
+## 3. Class
+
+```{r}
+n1 <- 8
+n2 <- 8
+cl <- c(rep(0,n1), rep(1,n2))
+```
+
+
+## 4. Origin
+
+```{r}
+origin <- rep(1, 13) # If origin is single, origin information is not needed for RP analysis. 
+```
+
+## 5. RP
+
+```{r}
+RP <- RP(countsN, cl, num.perm=100,
+         logged=TRUE, na.rm=FALSE, 
+         gene.names=rownames (countsN),
+         plot=F, rand=123)
+
+```
+
+## 6. Top genes
+
+```{r}
+TopGene <- topGene(RP, cutoff=0.001, method="pfp",
+                   logged=TRUE, logbase=2, gene.names=rownames(countsN))
+
+```
+
+
+```{r}
+T1 <- TopGene[["Table1"]]
+T2 <- TopGene[["Table2"]]
+
+```
+
+7. Extract the up and down regulated genes file
+
+```{r}
+write.table(T1 , col.names=NA, row.names=T, file ="Week9_CGDEUpReg0.01.tsv", sep ="\t")
+write.table(T2 , col.names=NA, row.names=T, file ="Week9_CGDEDnReg0.01.tsv", sep ="\t")
+
+dim(T1)
+```
+
+```{r}
+dim(T2)
+```
+
+
+
+
+
+
+
+
+
+
